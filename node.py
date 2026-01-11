@@ -3,7 +3,7 @@ import time
 import utils
 import logger
 from config import cfg
-from wal import WAL
+from Wal import WAL
 
 PRIMARY = "primary"
 REPLICA = "replica"
