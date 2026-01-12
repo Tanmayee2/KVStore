@@ -2,6 +2,8 @@ import threading
 import time
 import utils
 import logger
+import time
+import metrics_registry as m
 from config import cfg
 from Wal import WAL
 
@@ -52,13 +54,21 @@ class Node():
     # ------------------------------------------------------------------
 
     def handle_get(self, payload):
+        start = time.time()
         key = payload.get("key")
         self.ops_get += 1
+
         if key in self.DB:
             logger.log("get_hit", key=key)
-            return {"key": key, "value": self.DB[key]}
-        logger.log("get_miss", key=key)
-        return None
+            m.OPS_GET.labels(node=self.addr, status="hit").inc()
+            result = {"key": key, "value": self.DB[key]}
+        else:
+            logger.log("get_miss", key=key)
+            m.OPS_GET.labels(node=self.addr, status="miss").inc()
+            result = None
+
+        m.REQUEST_LAT.labels(node=self.addr, operation="get").observe((time.time() - start) * 1000)
+        return result
 
     def handle_put(self, payload):
         """
@@ -98,12 +108,17 @@ class Node():
             waited += 0.0005
             if waited > cfg.MAX_LOG_WAIT / 1000:
                 logger.log("put_timeout", key=key, waited_ms=round(waited * 1000))
+                m.OPS_PUT.labels(node=self.addr, status="timeout").inc()
                 self.ops_failed += 1
                 self.lock.release()
                 return False
 
         # Commit locally
         replication_lag_ms = round((time.time() - start) * 1000, 2)
+        m.OPS_PUT.labels(node=self.addr, status="success").inc()
+        m.REPL_LAG.labels(node=self.addr).observe(replication_lag_ms)
+        m.COMMIT_IDX.labels(node=self.addr).set(self.commitIdx)
+        m.DB_KEYS.labels(node=self.addr).set(len(self.DB))
         self._commit(key, value)
 
         commit_message = {
@@ -152,12 +167,14 @@ class Node():
         if self.replica_health[replica]["alive"]:
             logger.log("replica_unreachable", replica=replica)
         self.replica_health[replica]["alive"] = False
+        m.REPLICA_UP.labels(node=self.addr, replica=replica).set(0)
 
     def _mark_replica_up(self, replica):
         if not self.replica_health[replica]["alive"]:
             logger.log("replica_recovered", replica=replica)
         self.replica_health[replica]["alive"]     = True
         self.replica_health[replica]["last_seen"] = time.time()
+        m.REPLICA_UP.labels(node=self.addr, replica=replica).set(1)
 
     # ------------------------------------------------------------------
     # REPLICA-SIDE: RECEIVE REPLICATION MESSAGES FROM PRIMARY
@@ -198,6 +215,8 @@ class Node():
         # WAL write BEFORE updating memory — durability guarantee
         self.wal.append(self.commitIdx, key, value)
         self.DB[key] = value
+        m.DB_KEYS.labels(node=self.addr).set(len(self.DB))
+        m.COMMIT_IDX.labels(node=self.addr).set(self.commitIdx)
         self.staged  = None
         logger.log("committed", key=key, commitIdx=self.commitIdx)
 

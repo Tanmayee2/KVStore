@@ -3,6 +3,9 @@ import logging
 from flask import Flask, request, jsonify
 from node import Node, PRIMARY, REPLICA
 import logger
+from prometheus_client import make_wsgi_app, REGISTRY
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.serving import run_simple
 
 app = Flask(__name__)
 
@@ -106,4 +109,8 @@ if __name__ == "__main__":
     )
 
     _, host, port = my_ip.split(":")
-    app.run(host="0.0.0.0", port=int(port), debug=False)
+    # Mount Prometheus metrics at /metrics-prom (keep your JSON /metrics separate)
+    app_dispatch = DispatcherMiddleware(app, {
+        '/metrics-prom': make_wsgi_app()
+    })
+    run_simple("0.0.0.0", int(port), app_dispatch, use_reloader=False)
