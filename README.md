@@ -15,36 +15,36 @@ observability, and graceful degradation under partial node failure.
 
 ```
                         ┌─────────────────────────────────────────┐
-                        │              CLIENT                      │
+                        │              CLIENT                     │
                         │   python client.py PUT/GET              │
                         └──────────────┬──────────────────────────┘
                                        │ HTTP PUT/GET /request
                                        ▼
-                        ┌─────────────────────────────────────────┐
-                        │            PRIMARY NODE                  │
-                        │         http://127.0.0.1:5000           │
-                        │                                         │
-                        │  ┌─────────┐   ┌──────────────────┐   │
-                        │  │ in-mem  │   │  WAL (wal_        │   │
-                        │  │   DB    │◄──│  primary.log)     │   │
-                        │  └─────────┘   └──────────────────┘   │
-                        │                                         │
-                        │  Two-phase commit:                      │
-                        │    1. Stage + send LOG to replicas      │
-                        │    2. Wait for majority ack             │
-                        │    3. Write WAL → update DB             │
-                        │    4. Send COMMIT to replicas           │
+                        ┌────────────────────────────────────────┐
+                        │            PRIMARY NODE                │
+                        │         http://127.0.0.1:5000          │
+                        │                                        │
+                        │  ┌─────────┐   ┌──────────────────┐    │
+                        │  │ in-mem  │   │  WAL (wal_       │    │
+                        │  │   DB    │◄──│  primary.log)    │    │
+                        │  └─────────┘   └──────────────────┘    │
+                        │                                        │
+                        │  Two-phase commit:                     │
+                        │    1. Stage + send LOG to replicas     │
+                        │    2. Wait for majority ack            │
+                        │    3. Write WAL → update DB            │
+                        │    4. Send COMMIT to replicas          │
                         └──────────┬──────────────┬──────────────┘
                                    │  /replicate  │  /replicate
                           (POST log│& commit msgs)│
                    ┌───────────────▼──┐     ┌────▼──────────────┐
-                   │   REPLICA 1      │     │   REPLICA 2        │
-                   │ 127.0.0.1:5001   │     │ 127.0.0.1:5002     │
-                   │                  │     │                    │
+                   │   REPLICA 1      │     │   REPLICA 2       │
+                   │ 127.0.0.1:5001   │     │ 127.0.0.1:5002    │
+                   │                  │     │                   │
                    │ ┌────┐ ┌───────┐ │     │ ┌────┐ ┌───────┐  │
                    │ │ DB │ │  WAL  │ │     │ │ DB │ │  WAL  │  │
                    │ └────┘ └───────┘ │     │ └────┘ └───────┘  │
-                   └──────────────────┘     └────────────────────┘
+                   └──────────────────┘     └───────────────────┘
                           ▲                          ▲
                           │   POST /heartbeat        │
                           └─────── PRIMARY ──────────┘
@@ -106,7 +106,7 @@ python server.py replica http://127.0.0.1:5002 http://127.0.0.1:5000
 **Terminal 4 — Client**
 ```bash
 # Write a value
-python client.py http://127.0.0.1:5000 name tanmayee
+python client.py http://127.0.0.1:5000 <key> <value>
 # {'code': 'success'}
 
 # Read it back
