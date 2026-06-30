@@ -74,7 +74,7 @@ Writes continue as long as at least one replica responds.
 ## Setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Tanmayee2/KVStore.git
 cd kvstore
 pip install -r requirements.txt
 ```
